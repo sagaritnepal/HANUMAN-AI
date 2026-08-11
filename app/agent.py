@@ -1,0 +1,177 @@
+"""
+Core conversation agent: Claude decides what to say on each turn,
+tracks the lead-qualification state, and signals when the call should end.
+
+Multi-tenant: each CallSession carries a TenantConfig; the system prompt is
+built as [static platform rules — prompt-cached across ALL tenants] +
+[small per-tenant block]. Static block caching is what keeps per-call cost low.
+
+Telephony-agnostic — works the same for phone (via STT), web chat, or test CLI.
+"""
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, field
+
+import anthropic
+
+from . import config
+from .tenants import TenantConfig, get_or_default
+
+_client: anthropic.Anthropic | None = None
+
+
+def _get_client() -> anthropic.Anthropic:
+    global _client
+    if _client is None:
+        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return _client
+
+
+@dataclass
+class Lead:
+    """Structured info the agent tries to collect during the call."""
+    name: str | None = None
+    phone: str | None = None
+    interest: str | None = None
+    budget: str | None = None
+    timeline: str | None = None
+    qualified: bool | None = None
+    notes: str = ""
+    extra: dict = field(default_factory=dict)   # tenant-custom fields land here
+
+    def to_dict(self) -> dict:
+        d = self.__dict__.copy()
+        extra = d.pop("extra")
+        d.update(extra)
+        return d
+
+
+@dataclass
+class CallSession:
+    """One phone call = one session. Holds history + lead state + tenant."""
+    call_id: str
+    caller_number: str = "unknown"
+    tenant: TenantConfig = field(default_factory=lambda: get_or_default(None))
+    messages: list = field(default_factory=list)
+    lead: Lead = field(default_factory=Lead)
+    ended: bool = False
+    started_at: float = field(default_factory=lambda: __import__("time").time())
+
+    def duration_sec(self) -> int:
+        import time
+        return int(time.time() - self.started_at)
+
+
+# ---------------------------------------------------------------- prompts
+
+# Static across ALL tenants → sent with cache_control so Anthropic caches it.
+PLATFORM_RULES = """You are an AI phone agent on a live call in Nepal. Platform rules (never overridden):
+
+VOICE STYLE
+- 1-3 SHORT sentences per turn, then let the caller speak. One question at a time.
+- Spoken audio only: no lists, no markdown, no emoji.
+- Language: if mode is "auto", mirror the caller — natural conversational Nepali (Devanagari) if they speak Nepali, English if English; Nepali-English code-switching is normal and fine. Use polite Nepali forms (तपाईं).
+- Say numbers and phone numbers digit-by-digit. Never guess important details — ask again.
+
+HONESTY & SAFETY
+- If asked whether you are a machine/AI: answer truthfully yes, and offer a human follow-up.
+- Never invent facts, prices, or offers beyond the company facts provided. If unknown, say a colleague will confirm.
+- Never pressure anyone. If not interested, thank them and end quickly.
+
+CALL FLOW
+1. Greet, state your name and company.
+2. Understand the caller's need.
+3. Collect the qualification answers listed in the company block, naturally — not as an interrogation.
+4. If qualified: confirm their phone number, promise human follow-up, close politely.
+5. End with a courteous closing (e.g., "धन्यवाद, शुभ दिन!" / "Thank you, have a great day!").
+
+OUTPUT FORMAT — respond ONLY with a JSON object, no other text:
+{"say": "<what to speak — short, natural>", "lead_update": {<newly learned lead fields>}, "end_call": <true when conversation is finished>}
+Set end_call=true when: caller says goodbye, asks to stop, is clearly not interested, or qualification is complete and follow-up confirmed."""
+
+
+def _tenant_block(t: TenantConfig) -> str:
+    questions = "\n".join(f"- {q}" for q in t.questions)
+    parts = [
+        f"COMPANY BLOCK\nCompany: {t.company_name}\nYour name: {t.agent_name}\nLanguage mode: {t.language}",
+        f"Qualification info to collect:\n{questions}",
+        f"Lead fields you may set in lead_update: {', '.join(t.lead_fields)}",
+    ]
+    if t.greeting:
+        parts.append(f"Custom opening line (use it, adapted to caller's language): {t.greeting}")
+    if t.facts:
+        parts.append(f"Company facts you may state:\n{t.facts}")
+    if t.transfer_to:
+        parts.append("A human transfer is available for hot leads — offer it when the caller is highly interested.")
+    return "\n\n".join(parts)
+
+
+def _system_blocks(t: TenantConfig) -> list[dict]:
+    return [
+        {
+            "type": "text",
+            "text": PLATFORM_RULES,
+            "cache_control": {"type": "ephemeral"},   # cached across all tenants
+        },
+        {"type": "text", "text": _tenant_block(t)},
+    ]
+
+
+# ---------------------------------------------------------------- turns
+
+def greeting(session: CallSession) -> str:
+    """Opening line when the call connects."""
+    return _turn(session, user_text=None)
+
+
+def respond(session: CallSession, user_text: str) -> str:
+    """Process one caller utterance, return what the agent should say."""
+    return _turn(session, user_text=user_text)
+
+
+def _turn(session: CallSession, user_text: str | None) -> str:
+    if user_text is not None:
+        session.messages.append({"role": "user", "content": user_text})
+    elif not session.messages:
+        session.messages.append(
+            {"role": "user", "content": "[SYSTEM: The call just connected. Greet the caller.]"}
+        )
+
+    response = _get_client().messages.create(
+        model=config.CLAUDE_MODEL,
+        max_tokens=500,
+        system=_system_blocks(session.tenant),
+        messages=session.messages,
+    )
+    raw = response.content[0].text
+    session.messages.append({"role": "assistant", "content": raw})
+
+    say, lead_update, end_call = _parse_envelope(raw)
+
+    for k, v in lead_update.items():
+        if v in (None, ""):
+            continue
+        if hasattr(session.lead, k) and k != "extra":
+            setattr(session.lead, k, v)
+        else:
+            session.lead.extra[k] = v
+    session.ended = end_call
+    return say
+
+
+def _parse_envelope(raw: str) -> tuple[str, dict, bool]:
+    """Extract the JSON envelope; degrade gracefully if the model added prose."""
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not match:
+        return raw.strip(), {}, False
+    try:
+        data = json.loads(match.group(0))
+        return (
+            str(data.get("say", "")).strip() or raw.strip(),
+            data.get("lead_update") or {},
+            bool(data.get("end_call", False)),
+        )
+    except json.JSONDecodeError:
+        return raw.strip(), {}, False

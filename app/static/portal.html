@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1420">
+<link rel="manifest" href="/manifest.json">
+<title>hanuman.ai — My Dashboard</title>
+<style>
+  :root {
+    --bg:#0f1420; --card:#1a2233; --border:#2c3752; --text:#e8ecf4; --muted:#8b96ab;
+    --accent:#4f8cff; --accent-press:#3d6fd6; --ok:#3ecf8e; --ok-ink:#03291a;
+    --danger:#e24b4a; --input-bg:#111827;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Devanagari","Nirmala UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection { background:var(--accent); color:#fff; }
+
+  /* ---------- layout shells ---------- */
+  .app { max-width:520px; margin:0 auto; }
+  header.topbar {
+    padding:calc(16px + env(safe-area-inset-top)) 18px 12px; display:flex; align-items:center; gap:11px;
+    position:sticky; top:0; z-index:5; background:linear-gradient(var(--bg) 70%, transparent);
+  }
+  header.topbar .logo {
+    width:38px; height:38px; border-radius:11px; background:var(--card); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0;
+  }
+  header.topbar h1 { font-size:16px; font-weight:600; letter-spacing:-.2px; }
+  header.topbar .co { color:var(--muted); font-size:12.5px; margin-top:1px; }
+
+  .page { display:none; padding:2px 16px 24px; animation:fadein .18s ease; }
+  .page.active { display:block; }
+  @keyframes fadein { from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none} }
+
+  .card {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin-bottom:14px;
+  }
+  .card-title { font-size:14.5px; font-weight:600; margin-bottom:2px; }
+  .card-sub { font-size:12.5px; color:var(--muted); line-height:1.5; margin-top:4px; }
+
+  /* ---------- form controls ---------- */
+  label { font-size:12.5px; color:var(--muted); display:block; margin:14px 0 6px; font-weight:500; }
+  label:first-of-type { margin-top:4px; }
+  input, textarea, select {
+    width:100%; padding:12px 13px; border-radius:10px; border:1px solid var(--border);
+    background:var(--input-bg); color:var(--text); font-size:15px; font-family:inherit;
+    transition:border-color 150ms ease, box-shadow 150ms ease;
+    -webkit-appearance:none; appearance:none;
+  }
+  select {
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b96ab'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 14px center; padding-right:32px;
+  }
+  textarea { min-height:82px; resize:vertical; line-height:1.4; }
+  input::placeholder, textarea::placeholder { color:#586485; }
+  input:focus, textarea:focus, select:focus {
+    outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,140,255,.22);
+  }
+
+  button {
+    background:var(--accent); color:#fff; border:0; border-radius:10px;
+    padding:13px 18px; font-size:15px; font-weight:600; cursor:pointer; width:100%;
+    margin-top:16px; transition:background-color 150ms ease, transform 150ms ease, opacity 150ms ease;
+    min-height:44px;
+  }
+  button:active { background:var(--accent-press); transform:scale(.985); }
+  button:disabled { opacity:.55; cursor:default; }
+  button.ghost { background:var(--border); }
+  button.ghost:active { background:#38456630; filter:brightness(1.15); }
+  button.small { width:auto; padding:9px 14px; font-size:13px; margin-top:0; min-height:38px; }
+  button.icon-btn {
+    width:auto; background:transparent; border:1px solid var(--border); color:var(--muted);
+    padding:10px 12px; margin-top:0; min-height:40px; font-weight:500;
+  }
+  button.icon-btn:active { background:var(--border); color:var(--text); }
+
+  /* ---------- login ---------- */
+  #page-login { padding-top:14vh; }
+  .login-logo {
+    width:72px; height:72px; border-radius:20px; margin:0 auto 18px; background:var(--card);
+    border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:34px;
+  }
+  .login-title { text-align:center; font-size:20px; font-weight:700; margin-bottom:6px; letter-spacing:-.3px; }
+  .login-sub { text-align:center; font-size:13.5px; color:var(--muted); line-height:1.55; margin-bottom:26px; padding:0 8px; }
+  #loginStatus { font-size:13px; min-height:18px; margin-top:10px; text-align:center; transition:color 150ms ease; }
+  #loginStatus.err { color:var(--danger); }
+  #loginStatus.ok { color:var(--ok); }
+
+  /* ---------- stats row ---------- */
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+  .stat {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:13px 8px; text-align:center;
+  }
+  .stat .num { font-size:19px; font-weight:700; letter-spacing:-.3px; }
+  .stat .lbl { font-size:10.5px; color:var(--muted); margin-top:3px; text-transform:uppercase; letter-spacing:.3px; }
+
+  /* ---------- leads ---------- */
+  .list-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; }
+  .lead {
+    border-bottom:1px solid var(--border); padding:13px 0; font-size:14px;
+    display:flex; flex-direction:column; gap:5px;
+  }
+  .lead:last-child { border-bottom:0; }
+  .lead .top-row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .lead .who { font-weight:600; font-size:14.5px; }
+  .lead .meta { color:var(--muted); font-size:12px; white-space:nowrap; }
+  .lead .tags { display:flex; flex-wrap:wrap; gap:5px; }
+  .pill {
+    display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11px;
+    background:var(--border); color:var(--text); font-weight:500; white-space:nowrap;
+  }
+  .pill.q { background:var(--ok); color:var(--ok-ink); font-weight:700; }
+
+  .empty-state { text-align:center; color:var(--muted); padding:44px 14px; font-size:13.5px; line-height:1.6; }
+  .empty-state .ic { font-size:34px; margin-bottom:10px; opacity:.7; }
+
+  /* ---------- shimmer loading ---------- */
+  .shimmer {
+    background:linear-gradient(100deg, var(--card) 30%, #232e46 50%, var(--card) 70%);
+    background-size:220% 100%; animation:shimmer 1.3s ease-in-out infinite;
+    border-radius:8px;
+  }
+  @keyframes shimmer { 0%{background-position:130% 0} 100%{background-position:-30% 0} }
+  .skel-lead { padding:13px 0; border-bottom:1px solid var(--border); }
+  .skel-line { height:12px; border-radius:6px; margin-bottom:8px; }
+  .skel-line.w60{width:60%} .skel-line.w40{width:40%} .skel-line.w30{width:30%; margin-bottom:0}
+
+  /* ---------- toast ---------- */
+  #toast {
+    position:fixed; left:50%; bottom:calc(90px + env(safe-area-inset-bottom)); transform:translate(-50%,12px);
+    background:var(--ok); color:var(--ok-ink); font-weight:700; font-size:13.5px; padding:11px 20px;
+    border-radius:24px; opacity:0; pointer-events:none; transition:opacity 200ms ease, transform 200ms ease;
+    box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:50; white-space:nowrap;
+  }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+
+  /* ---------- bottom nav ---------- */
+  nav.tabbar {
+    position:fixed; bottom:0; left:0; right:0; background:rgba(26,34,51,.92); backdrop-filter:blur(10px);
+    border-top:1px solid var(--border); display:flex; padding-bottom:env(safe-area-inset-bottom); z-index:10;
+  }
+  nav.tabbar a {
+    flex:1; text-align:center; padding:9px 0 8px; color:var(--muted); text-decoration:none;
+    font-size:10.5px; font-weight:600; min-height:44px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:2px; transition:color 150ms ease;
+  }
+  nav.tabbar a.active { color:var(--accent); }
+  nav.tabbar a .ic { font-size:21px; transition:transform 150ms ease; }
+  nav.tabbar a.active .ic { transform:translateY(-1px); }
+
+  /* ---------- test call chat ---------- */
+  #chatLog { height:56vh; overflow-y:auto; display:flex; flex-direction:column; gap:9px; padding:6px 2px; }
+  .msg {
+    max-width:80%; padding:10px 13px; border-radius:16px; font-size:14px; line-height:1.4;
+    animation:msgIn 180ms ease;
+  }
+  @keyframes msgIn { from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+  .msg.agent { background:var(--border); align-self:flex-start; border-bottom-left-radius:4px; }
+  .msg.user { background:var(--accent); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
+  .msg.typing { display:flex; gap:4px; padding:13px 15px; align-self:flex-start; background:var(--border); border-bottom-left-radius:4px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--muted); animation:blink 1.2s infinite ease-in-out; }
+  .dot:nth-child(2){animation-delay:.15s} .dot:nth-child(3){animation-delay:.3s}
+  @keyframes blink { 0%,80%,100%{opacity:.3; transform:scale(.8)} 40%{opacity:1; transform:scale(1)} }
+  .chatRow { display:flex; gap:8px; margin-top:12px; }
+  .chatRow input { flex:1; margin:0; }
+  .chatRow button.send {
+    width:48px; height:48px; border-radius:50%; margin:0; padding:0; font-size:18px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .connDot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
+  .connDot.live { background:var(--ok); box-shadow:0 0 0 3px rgba(62,207,142,.2); }
+  .connDot.dead { background:var(--danger); }
+  #chatMeta { display:flex; align-items:center; font-size:12px; color:var(--muted); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<header class="topbar" id="topbar" style="display:none">
+  <div class="logo">📞</div>
+  <div><h1>hanuman.ai</h1><div class="co" id="coName"></div></div>
+</header>
+
+<!-- LOGIN -->
+<div class="page active" id="page-login">
+  <div class="login-logo">📞</div>
+  <div class="login-title">hanuman.ai</div>
+  <div class="login-sub">Sign in with the access key hanuman.ai gave you.
+    Your AI agent answers business calls and collects leads — manage everything here.</div>
+  <div class="card">
+    <label>Access key</label>
+    <input id="loginKey" type="password" placeholder="tk_..." autocomplete="off" autocapitalize="off"
+           onkeydown="if(event.key==='Enter')login()">
+    <button id="loginBtn" onclick="login()">Sign in</button>
+    <div id="loginStatus"></div>
+  </div>
+</div>
+
+<!-- LEADS -->
+<div class="page" id="page-leads">
+  <div class="stats-row" id="statsRow">
+    <div class="stat"><div class="num shimmer" style="height:19px;width:32px;margin:0 auto">&nbsp;</div><div class="lbl">Calls</div></div>
+    <div class="stat"><div class="num shimmer" style="height:19px;width:32px;margin:0 auto">&nbsp;</div><div class="lbl">Leads</div></div>
+    <div class="stat"><div class="num shimmer" style="height:19px;width:32px;margin:0 auto">&nbsp;</div><div class="lbl">Minutes</div></div>
+  </div>
+  <div class="card">
+    <div class="list-head">
+      <span class="card-title">Leads from your calls</span>
+      <button class="small ghost" onclick="loadLeads()">↻ Refresh</button>
+    </div>
+    <div id="leadsList">
+      <div class="skel-lead"><div class="skel-line w40 shimmer">&nbsp;</div><div class="skel-line w60 shimmer">&nbsp;</div><div class="skel-line w30 shimmer">&nbsp;</div></div>
+      <div class="skel-lead"><div class="skel-line w40 shimmer">&nbsp;</div><div class="skel-line w60 shimmer">&nbsp;</div><div class="skel-line w30 shimmer">&nbsp;</div></div>
+      <div class="skel-lead"><div class="skel-line w40 shimmer">&nbsp;</div><div class="skel-line w60 shimmer">&nbsp;</div><div class="skel-line w30 shimmer">&nbsp;</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- AGENT SETTINGS -->
+<div class="page" id="page-agent">
+  <div class="card">
+    <div class="card-title">My agent</div>
+    <div class="card-sub">Changes take effect on the next call.</div>
+    <label>Agent name</label><input id="a_agent_name">
+    <label>Language</label>
+    <select id="a_language">
+      <option value="auto">Auto (match the caller)</option>
+      <option value="ne">Nepali</option><option value="en">English</option>
+    </select>
+    <label>Greeting (optional)</label><input id="a_greeting" placeholder="e.g. Namaste! ... मा स्वागत छ">
+    <label>About your business — facts the agent may tell callers</label>
+    <textarea id="a_facts" placeholder="What you sell, prices, opening hours, location..."></textarea>
+    <label>What the agent should find out from each caller (one per line)</label>
+    <textarea id="a_questions"></textarea>
+    <label>Send hot leads to this phone number (optional)</label>
+    <input id="a_transfer_to" placeholder="+9779812345678">
+    <button id="saveBtn" onclick="saveAgent()">Save changes</button>
+  </div>
+</div>
+
+<!-- TEST CALL -->
+<div class="page" id="page-test">
+  <div class="card">
+    <div class="list-head">
+      <div>
+        <div class="card-title">Test your agent</div>
+        <div id="chatMeta"><span class="connDot dead" id="connDot"></span><span id="connLabel">Connecting…</span></div>
+      </div>
+      <button class="small ghost" onclick="startChat()">↻ New test call</button>
+    </div>
+    <div id="chatLog"></div>
+    <div class="chatRow">
+      <input id="chatInput" placeholder="Say something… (नेपाली ठिक छ)"
+             onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="send" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /.app -->
+
+<nav class="tabbar" id="nav" style="display:none">
+  <a href="#" data-page="leads" class="active" onclick="go('leads');return false"><span class="ic">📋</span>Leads</a>
+  <a href="#" data-page="agent" onclick="go('agent');return false"><span class="ic">🤖</span>My Agent</a>
+  <a href="#" data-page="test" onclick="go('test');return false"><span class="ic">💬</span>Test Call</a>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let KEY = localStorage.getItem('tenantKey') || '';
+let ws = null;
+let awaitingReply = false;
+
+const hdrs = () => ({ 'Content-Type':'application/json', 'X-Tenant-Key': KEY });
+
+async function api(path, opts={}) {
+  const r = await fetch(path, { headers: hdrs(), ...opts });
+  if (r.status === 401) { logout(); throw new Error('unauthorized'); }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function go(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  $('page-'+page).classList.add('active');
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active', a.dataset.page===page));
+  if (page==='leads') loadLeads();
+  if (page==='test' && !ws) startChat();
+}
+
+async function login() {
+  const key = $('loginKey').value.trim();
+  if (!key) return;
+  KEY = key;
+  $('loginBtn').disabled = true; $('loginBtn').textContent = 'Signing in…';
+  const st = $('loginStatus'); st.className=''; st.textContent='';
+  try {
+    const me = await api('/portal/me');
+    localStorage.setItem('tenantKey', KEY);
+    enter(me);
+  } catch(e) {
+    st.className = 'err';
+    st.textContent = 'Invalid key — check and try again.';
+  } finally {
+    $('loginBtn').disabled = false; $('loginBtn').textContent = 'Sign in';
+  }
+}
+
+function logout() {
+  localStorage.removeItem('tenantKey'); KEY='';
+  if (ws) { try{ws.close()}catch(e){} ws=null; }
+  $('nav').style.display='none';
+  $('topbar').style.display='none';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  $('page-login').classList.add('active');
+}
+
+function enter(me) {
+  $('coName').textContent = me.company_name;
+  $('a_agent_name').value = me.agent_name||'';
+  $('a_language').value = me.language||'auto';
+  $('a_greeting').value = me.greeting||'';
+  $('a_facts').value = me.facts||'';
+  $('a_questions').value = (me.questions||[]).join('\n');
+  $('a_transfer_to').value = me.transfer_to||'';
+  $('nav').style.display='flex';
+  $('topbar').style.display='flex';
+  go('leads');
+}
+
+function currentMonth() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+
+async function loadLeads() {
+  try {
+    const [ls, usage] = await Promise.all([ api('/portal/leads'), api('/portal/usage') ]);
+    const month = currentMonth();
+    const leadsThisMonth = ls.filter(l => (l.created_at||'').slice(0,7) === month).length;
+
+    $('statsRow').innerHTML = `
+      <div class="stat"><div class="num">${usage.calls ?? 0}</div><div class="lbl">Calls</div></div>
+      <div class="stat"><div class="num">${leadsThisMonth}</div><div class="lbl">Leads</div></div>
+      <div class="stat"><div class="num">${usage.minutes ?? 0}</div><div class="lbl">Minutes</div></div>`;
+
+    if (!ls.length) {
+      $('leadsList').innerHTML = `<div class="empty-state"><div class="ic">📭</div>
+        No leads yet — they'll appear here after your agent takes a call.</div>`;
+      return;
+    }
+    $('leadsList').innerHTML = ls.map(l => {
+      const d = l.data||{};
+      const q = d.qualified===true||d.qualified==='true';
+      return `<div class="lead">
+        <div class="top-row">
+          <span class="who">${esc(d.name||'Unknown caller')}</span>
+          <span class="meta">${(l.created_at||'').slice(0,16).replace('T',' ')}</span>
+        </div>
+        <div class="meta">${esc(l.caller_number||'')}</div>
+        <div class="tags">${q?'<span class="pill q">✓ qualified</span>':''}
+          ${d.interest?`<span class="pill">${esc(d.interest)}</span>`:''}
+          ${d.budget?`<span class="pill">💰 ${esc(d.budget)}</span>`:''}
+          ${d.timeline?`<span class="pill">🗓 ${esc(d.timeline)}</span>`:''}</div>
+      </div>`;
+    }).join('');
+  } catch(e) { /* 401 already handled by api(); ignore other transient errors */ }
+}
+
+async function saveAgent() {
+  const btn = $('saveBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Saving…';
+  try {
+    await api('/portal/me', { method:'PUT', body: JSON.stringify({
+      agent_name: $('a_agent_name').value,
+      language: $('a_language').value,
+      greeting: $('a_greeting').value,
+      facts: $('a_facts').value,
+      questions: $('a_questions').value.split('\n').map(s=>s.trim()).filter(Boolean),
+      transfer_to: $('a_transfer_to').value,
+    })});
+    showToast('Saved ✓');
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+function setConn(state) {
+  const dot = $('connDot'), lbl = $('connLabel');
+  dot.className = 'connDot ' + (state==='live' ? 'live' : 'dead');
+  lbl.textContent = state==='live' ? 'Live — talk to your agent' : (state==='connecting' ? 'Connecting…' : 'Disconnected');
+}
+
+function startChat() {
+  if (ws) { try{ws.close()}catch(e){} ws=null; }
+  $('chatLog').innerHTML='';
+  setConn('connecting');
+  const proto = location.protocol==='https:'?'wss':'ws';
+  ws = new WebSocket(`${proto}://${location.host}/portal/ws/test-chat`);
+  ws.onopen = () => { ws.send(KEY); setConn('live'); showTyping(); };
+  ws.onmessage = ev => { hideTyping(); addMsg(ev.data, 'agent'); };
+  ws.onclose = () => { ws=null; setConn('dead'); };
+  ws.onerror = () => setConn('dead');
+}
+
+function sendChat() {
+  const t = $('chatInput').value.trim();
+  if (!t || !ws || ws.readyState!==1) return;
+  addMsg(t,'user'); ws.send(t); $('chatInput').value=''; showTyping();
+}
+
+function showTyping() {
+  hideTyping();
+  const div = document.createElement('div');
+  div.className = 'msg typing'; div.id = 'typingBubble';
+  div.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+  $('chatLog').appendChild(div);
+  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+}
+function hideTyping() { const b = $('typingBubble'); if (b) b.remove(); }
+
+function addMsg(text, who) {
+  const div = document.createElement('div');
+  div.className = 'msg '+who; div.textContent = text;
+  $('chatLog').appendChild(div);
+  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+}
+
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// auto-login if key saved
+if (KEY) api('/portal/me').then(enter).catch(()=>logout());
+</script>
+</body>
+</html>

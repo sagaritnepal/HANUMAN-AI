@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hanuman.ai — Admin</title>
+<style>
+  :root {
+    --bg:#0f1420; --card:#1a2233; --border:#2c3752; --text:#e8ecf4; --muted:#8b96ab;
+    --accent:#4f8cff; --accent-press:#3d6fd6; --ok:#3ecf8e; --ok-ink:#03291a;
+    --danger:#e24b4a; --danger-press:#c53f3e; --input-bg:#111827;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Devanagari","Nirmala UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  ::selection { background:var(--accent); color:#fff; }
+
+  /* ---------- top bar ---------- */
+  header.topbar {
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 26px; border-bottom:1px solid var(--border); position:sticky; top:0;
+    background:rgba(15,20,32,.92); backdrop-filter:blur(10px); z-index:20;
+  }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .brand .logo {
+    width:34px; height:34px; border-radius:9px; background:var(--card); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+  }
+  .brand h1 { font-size:15.5px; font-weight:700; letter-spacing:-.2px; }
+  .brand .tag { font-size:11px; color:var(--muted); }
+  .conn-status { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--danger); transition:background-color 150ms ease, box-shadow 150ms ease; }
+  .dot.live { background:var(--ok); box-shadow:0 0 0 4px rgba(62,207,142,.18); }
+
+  .keybar { display:flex; align-items:center; gap:10px; }
+  .keybar input { width:260px; }
+
+  main { max-width:1240px; margin:0 auto; padding:22px 26px 60px; }
+  h2.section-title { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin:26px 0 12px; }
+  h2.section-title:first-child { margin-top:0; }
+
+  /* ---------- controls ---------- */
+  input, textarea, select {
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--border);
+    background:var(--input-bg); color:var(--text); font-size:14px; font-family:inherit;
+    transition:border-color 150ms ease, box-shadow 150ms ease; -webkit-appearance:none; appearance:none;
+  }
+  select {
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b96ab'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; padding-right:30px;
+  }
+  textarea { min-height:70px; resize:vertical; line-height:1.4; }
+  input::placeholder, textarea::placeholder { color:#586485; }
+  input:focus, textarea:focus, select:focus {
+    outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,140,255,.22);
+  }
+  label { font-size:12px; color:var(--muted); display:block; margin:12px 0 5px; font-weight:500; }
+  label:first-of-type { margin-top:0; }
+
+  button {
+    background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 16px;
+    font-size:13.5px; font-weight:600; cursor:pointer; transition:background-color 150ms ease, transform 150ms ease, opacity 150ms ease;
+    min-height:38px;
+  }
+  button:active { background:var(--accent-press); transform:scale(.97); }
+  button:disabled { opacity:.5; cursor:default; }
+  button.secondary { background:var(--border); color:var(--text); }
+  button.secondary:active { filter:brightness(1.2); }
+  button.danger { background:transparent; border:1px solid var(--danger); color:var(--danger); }
+  button.danger:active { background:var(--danger); color:#fff; }
+  button.ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  button.ghost:active { background:var(--border); color:var(--text); }
+  button.sm { padding:6px 11px; font-size:12px; min-height:30px; }
+
+  /* ---------- cards / kpis ---------- */
+  .card {
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px;
+  }
+  .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .kpi {
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 18px;
+  }
+  .kpi .num { font-size:26px; font-weight:700; letter-spacing:-.5px; }
+  .kpi .lbl { font-size:12px; color:var(--muted); margin-top:4px; }
+
+  /* ---------- table ---------- */
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:640px; }
+  th, td { text-align:left; padding:11px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; }
+  tbody tr { transition:background-color 150ms ease; }
+  tbody tr:hover { background:rgba(79,140,255,.05); }
+  tbody tr:last-child td { border-bottom:0; }
+  .row-actions { display:flex; gap:6px; }
+
+  .pill {
+    display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:11px;
+    background:var(--border); font-weight:600;
+  }
+  .pill.active { background:var(--ok); color:var(--ok-ink); }
+  .pill.suspended { background:var(--danger); color:#fff; }
+
+  .empty-row td { color:var(--muted); text-align:center; padding:26px; }
+
+  /* ---------- shimmer ---------- */
+  .shimmer {
+    background:linear-gradient(100deg, var(--card) 30%, #232e46 50%, var(--card) 70%);
+    background-size:220% 100%; animation:shimmer 1.3s ease-in-out infinite; border-radius:6px; display:inline-block;
+  }
+  @keyframes shimmer { 0%{background-position:130% 0} 100%{background-position:-30% 0} }
+
+  /* ---------- slide-in edit panel ---------- */
+  .scrim {
+    position:fixed; inset:0; background:rgba(5,8,14,.6); opacity:0; pointer-events:none;
+    transition:opacity 200ms ease; z-index:30;
+  }
+  .scrim.open { opacity:1; pointer-events:auto; }
+  .drawer {
+    position:fixed; top:0; right:0; bottom:0; width:420px; max-width:92vw; background:var(--card);
+    border-left:1px solid var(--border); z-index:31; transform:translateX(100%);
+    transition:transform 220ms cubic-bezier(.2,.8,.2,1); overflow-y:auto; padding:22px 24px 40px;
+  }
+  .drawer.open { transform:translateX(0); }
+  .drawer-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .drawer-head h3 { font-size:16px; font-weight:700; }
+  .drawer-head .x { background:transparent; border:0; color:var(--muted); font-size:20px; padding:4px 8px; min-height:auto; }
+  .drawer-sub { font-size:12px; color:var(--muted); margin-bottom:14px; }
+  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .drawer-actions { display:flex; gap:10px; margin-top:20px; }
+  .drawer-actions button { flex:1; }
+  .keyrow { display:flex; gap:8px; align-items:center; }
+  .keyrow input { flex:1; font-family:ui-monospace,Consolas,monospace; font-size:12.5px; }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position:fixed; left:50%; bottom:28px; transform:translate(-50%,12px);
+    background:var(--ok); color:var(--ok-ink); font-weight:700; font-size:13.5px; padding:11px 20px;
+    border-radius:24px; opacity:0; pointer-events:none; transition:opacity 200ms ease, transform 200ms ease;
+    box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:60; white-space:nowrap;
+  }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+  #toast.err { background:var(--danger); color:#fff; }
+
+  .two-col { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:900px) { .two-col { grid-template-columns:1fr; } .kpi-row { grid-template-columns:repeat(2,1fr); } }
+
+  .result-box {
+    margin-top:12px; padding:10px 12px; border-radius:8px; font-size:12.5px; font-family:ui-monospace,Consolas,monospace;
+    background:var(--input-bg); border:1px solid var(--border); white-space:pre-wrap; word-break:break-word; display:none;
+  }
+  .result-box.show { display:block; }
+  .result-box.err { border-color:var(--danger); color:#ffb4b3; }
+  .result-box.ok { border-color:var(--ok); color:#a8f0cf; }
+
+  .login-gate {
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .login-card { width:360px; max-width:100%; }
+  .login-card .logo { width:52px; height:52px; border-radius:14px; background:var(--input-bg); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:26px; margin:0 auto 14px; }
+  .login-card h2 { text-align:center; font-size:17px; margin-bottom:4px; }
+  .login-card .sub { text-align:center; font-size:12.5px; color:var(--muted); margin-bottom:18px; }
+  .login-card button { width:100%; margin-top:14px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN GATE -->
+<div class="login-gate" id="loginGate">
+  <div class="card login-card">
+    <div class="logo">📞</div>
+    <h2>hanuman.ai — Admin</h2>
+    <div class="sub">Enter the admin key to access the dashboard.</div>
+    <label>Admin key (X-Admin-Key)</label>
+    <input id="adminKey" type="password" placeholder="paste ADMIN_API_KEY from .env" autocomplete="off"
+           onkeydown="if(event.key==='Enter')connect()">
+    <button onclick="connect()" id="connectBtn">Connect</button>
+    <div class="result-box" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">📞</div>
+      <div><h1>hanuman.ai</h1><div class="tag">Admin dashboard</div></div>
+    </div>
+    <div class="conn-status"><span class="dot live" id="connDot"></span><span id="connLabel">Connected</span>
+      <button class="ghost sm" style="margin-left:10px" onclick="signOut()">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <h2 class="section-title">Overview</h2>
+    <div class="kpi-row" id="kpiRow">
+      <div class="kpi"><div class="num shimmer" style="width:36px;height:26px">&nbsp;</div><div class="lbl">Tenants</div></div>
+      <div class="kpi"><div class="num shimmer" style="width:36px;height:26px">&nbsp;</div><div class="lbl">Calls this month</div></div>
+      <div class="kpi"><div class="num shimmer" style="width:36px;height:26px">&nbsp;</div><div class="lbl">Leads this month</div></div>
+      <div class="kpi"><div class="num shimmer" style="width:36px;height:26px">&nbsp;</div><div class="lbl">Minutes this month</div></div>
+    </div>
+
+    <h2 class="section-title">Tenants</h2>
+    <div class="card table-wrap">
+      <table id="tenantsTable">
+        <thead><tr><th>Company</th><th>Agent</th><th>Language</th><th>Status</th><th>Calls / Min</th><th></th></tr></thead>
+        <tbody><tr class="empty-row"><td colspan="6">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px"><button onclick="openDrawer()">+ New tenant</button></div>
+
+    <div class="two-col" style="margin-top:26px">
+      <div>
+        <h2 class="section-title" style="margin-top:0">Recent leads <span style="text-transform:none; font-weight:400">(auto-refreshes)</span></h2>
+        <div class="card table-wrap">
+          <table id="leadsTable">
+            <thead><tr><th>Tenant</th><th>Caller</th><th>Lead</th><th>When</th></tr></thead>
+            <tbody><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="section-title" style="margin-top:0">Map number → tenant</h2>
+        <div class="card">
+          <label>Phone number (E.164)</label>
+          <input id="n_e164" placeholder="+97714XXXXXX">
+          <label>Tenant ID</label>
+          <input id="n_tenant" placeholder="tenant id">
+          <button onclick="mapNumber()" style="width:100%; margin-top:14px">Map number</button>
+          <div class="result-box" id="mapResult"></div>
+        </div>
+
+        <h2 class="section-title">Test call</h2>
+        <div class="card">
+          <label>Phone number (E.164)</label>
+          <input id="t_to" placeholder="+9779800000000">
+          <label>Tenant</label>
+          <select id="t_tenant"><option value="">— default —</option></select>
+          <button onclick="testCall()" style="width:100%; margin-top:14px">Place test call</button>
+          <div class="result-box" id="testResult"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- EDIT/CREATE DRAWER -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><h3 id="drawerTitle">New tenant</h3><button class="x" onclick="closeDrawer()">✕</button></div>
+  <div class="drawer-sub" id="drawerSub">Create a new customer tenant.</div>
+
+  <input type="hidden" id="f_tenant_id">
+  <label>Company name</label><input id="f_company_name">
+  <div class="field-row">
+    <div><label>Agent name</label><input id="f_agent_name" value="Asha"></div>
+    <div><label>Language</label>
+      <select id="f_language"><option value="auto">auto</option><option value="ne">Nepali</option><option value="en">English</option></select>
+    </div>
+  </div>
+  <label>Custom greeting (optional)</label><input id="f_greeting">
+  <label>Company facts / FAQ the agent may state</label><textarea id="f_facts"></textarea>
+  <label>Qualification questions (one per line)</label>
+  <textarea id="f_questions">caller's name
+what product or service they are interested in
+their approximate budget
+their timeline</textarea>
+  <label>Transfer number for hot leads (optional)</label><input id="f_transfer_to">
+  <div class="field-row">
+    <div><label>Included minutes / month</label><input id="f_included_minutes" type="number" value="1000"></div>
+    <div><label>Status</label>
+      <select id="f_status"><option value="active">active</option><option value="suspended">suspended</option></select>
+    </div>
+  </div>
+
+  <div id="apiKeyBlock" style="display:none">
+    <label>Portal access key</label>
+    <div class="keyrow">
+      <input id="f_api_key" readonly>
+      <button class="secondary sm" onclick="copyKey()" id="copyBtn">Copy</button>
+    </div>
+  </div>
+
+  <div class="drawer-actions">
+    <button class="secondary" onclick="closeDrawer()">Cancel</button>
+    <button onclick="saveTenant()" id="drawerSaveBtn">Save tenant</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ADMIN_KEY = '';
+let allTenants = [];
+let usageByTenant = {};
+let refreshTimer = null;
+
+const hdrs = () => ({ 'Content-Type':'application/json', 'X-Admin-Key': ADMIN_KEY });
+
+async function api(path, opts={}) {
+  const r = await fetch(path, { headers: hdrs(), ...opts });
+  if (!r.ok) { const body = await r.text(); throw new Error(`${r.status}: ${body}`); }
+  return r.json();
+}
+
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let toastTimer;
+function showToast(msg, isErr=false) {
+  const t = $('toast');
+  t.textContent = msg; t.className = isErr ? 'show err' : 'show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+function currentMonth() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+
+// ---------------------------------------------------------------- auth
+async function connect() {
+  const key = $('adminKey').value.trim();
+  if (!key) return;
+  const btn = $('connectBtn'); btn.disabled = true; btn.textContent = 'Connecting…';
+  $('loginErr').className = 'result-box';
+  try {
+    ADMIN_KEY = key;
+    await api('/admin/tenants'); // validates the key
+    $('loginGate').style.display = 'none';
+    $('dashboard').style.display = 'block';
+    loadAll();
+    refreshTimer = setInterval(loadLeadsTable, 30000);
+  } catch (e) {
+    ADMIN_KEY = '';
+    $('loginErr').textContent = 'Invalid admin key — check .env and try again.';
+    $('loginErr').className = 'result-box err show';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Connect';
+  }
+}
+
+function signOut() {
+  ADMIN_KEY = ''; allTenants = []; usageByTenant = {};
+  if (refreshTimer) clearInterval(refreshTimer);
+  $('adminKey').value = '';
+  $('dashboard').style.display = 'none';
+  $('loginGate').style.display = 'flex';
+}
+
+function setConn(live) {
+  $('connDot').classList.toggle('live', live);
+  $('connLabel').textContent = live ? 'Connected' : 'Disconnected';
+}
+
+// ---------------------------------------------------------------- loaders
+async function loadAll() {
+  await Promise.all([loadTenantsAndUsage(), loadLeadsTable()]);
+}
+
+async function loadTenantsAndUsage() {
+  try {
+    const [ts, usage] = await Promise.all([ api('/admin/tenants'), api('/admin/usage') ]);
+    allTenants = ts;
+    usageByTenant = {};
+    usage.forEach(u => usageByTenant[u.tenant_id] = u);
+    renderTenants();
+    renderKpis();
+    populateTenantDropdown();
+    setConn(true);
+  } catch (e) {
+    setConn(false);
+    if (String(e.message).startsWith('401')) signOut();
+  }
+}
+
+function renderKpis() {
+  const totalCalls = Object.values(usageByTenant).reduce((s,u)=>s+(u.calls||0), 0);
+  const totalMinutes = Object.values(usageByTenant).reduce((s,u)=>s+(u.minutes||0), 0);
+  const leadsThisMonth = window.__leadsThisMonth ?? '—';
+  $('kpiRow').innerHTML = `
+    <div class="kpi"><div class="num">${allTenants.length}</div><div class="lbl">Tenants</div></div>
+    <div class="kpi"><div class="num">${totalCalls}</div><div class="lbl">Calls this month</div></div>
+    <div class="kpi"><div class="num">${leadsThisMonth}</div><div class="lbl">Leads this month</div></div>
+    <div class="kpi"><div class="num">${Math.round(totalMinutes*10)/10}</div><div class="lbl">Minutes this month</div></div>`;
+}
+
+function renderTenants() {
+  const tbody = document.querySelector('#tenantsTable tbody');
+  if (!allTenants.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="6">No tenants yet — create one to get started.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = allTenants.map(t => {
+    const u = usageByTenant[t.tenant_id] || { calls:0, minutes:0 };
+    return `<tr>
+      <td>${esc(t.company_name)}</td>
+      <td>${esc(t.agent_name)}</td>
+      <td>${esc(t.language)}</td>
+      <td><span class="pill ${t.status==='active'?'active':'suspended'}">${esc(t.status)}</span></td>
+      <td>${u.calls} / ${u.minutes}m</td>
+      <td class="row-actions">
+        <button class="secondary sm" onclick='editTenant(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Edit</button>
+        <button class="ghost sm" onclick="copyTenantKey('${t.tenant_id}', this)">Copy key</button>
+        <button class="danger sm" onclick="deleteTenant('${t.tenant_id}', '${esc(t.company_name).replace(/'/g,"\\'")}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadLeadsTable() {
+  try {
+    const ls = await api('/admin/leads');
+    const month = currentMonth();
+    window.__leadsThisMonth = ls.filter(l => (l.created_at||'').slice(0,7) === month).length;
+    if (allTenants.length) renderKpis();
+
+    const tbody = document.querySelector('#leadsTable tbody');
+    if (!ls.length) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="4">No leads yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = ls.slice(0,25).map(l => {
+      const d = l.data || {};
+      const summary = d.name ? `${esc(d.name)}${d.interest? ' · '+esc(d.interest):''}` : esc(JSON.stringify(d)).slice(0,60);
+      return `<tr>
+        <td>${esc(l.tenant_id||'')}</td>
+        <td>${esc(l.caller_number||'')}</td>
+        <td>${summary}</td>
+        <td>${(l.created_at||'').slice(0,16).replace('T',' ')}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    if (String(e.message).startsWith('401')) signOut();
+  }
+}
+
+function populateTenantDropdown() {
+  const sel = $('t_tenant');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— default —</option>' +
+    allTenants.map(t => `<option value="${t.tenant_id}">${esc(t.company_name)}</option>`).join('');
+  sel.value = cur;
+}
+
+// ---------------------------------------------------------------- drawer
+function openDrawer() {
+  $('drawerTitle').textContent = 'New tenant';
+  $('drawerSub').textContent = 'Create a new customer tenant.';
+  $('f_tenant_id').value = '';
+  $('f_company_name').value = '';
+  $('f_agent_name').value = 'Asha';
+  $('f_language').value = 'auto';
+  $('f_greeting').value = '';
+  $('f_facts').value = '';
+  $('f_questions').value = "caller's name\nwhat product or service they are interested in\ntheir approximate budget\ntheir timeline";
+  $('f_transfer_to').value = '';
+  $('f_included_minutes').value = 1000;
+  $('f_status').value = 'active';
+  $('apiKeyBlock').style.display = 'none';
+  $('scrim').classList.add('open');
+  $('drawer').classList.add('open');
+}
+
+function editTenant(t) {
+  $('drawerTitle').textContent = 'Edit tenant';
+  $('drawerSub').textContent = t.tenant_id;
+  $('f_tenant_id').value = t.tenant_id;
+  $('f_company_name').value = t.company_name||'';
+  $('f_agent_name').value = t.agent_name||'';
+  $('f_language').value = t.language||'auto';
+  $('f_greeting').value = t.greeting||'';
+  $('f_facts').value = t.facts||'';
+  $('f_questions').value = (t.questions||[]).join('\n');
+  $('f_transfer_to').value = t.transfer_to||'';
+  $('f_included_minutes').value = t.included_minutes ?? 1000;
+  $('f_status').value = t.status||'active';
+  $('f_api_key').value = t.api_key||'';
+  $('apiKeyBlock').style.display = 'block';
+  $('copyBtn').textContent = 'Copy';
+  $('scrim').classList.add('open');
+  $('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  $('scrim').classList.remove('open');
+  $('drawer').classList.remove('open');
+}
+
+async function copyTenantKey(tenantId, btn) {
+  const t = allTenants.find(x => x.tenant_id === tenantId);
+  if (!t || !t.api_key) return;
+  try {
+    await navigator.clipboard.writeText(t.api_key);
+    const orig = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(()=>btn.textContent = orig, 1600);
+  } catch (e) { showToast('Could not copy — clipboard blocked', true); }
+}
+
+async function copyKey() {
+  const v = $('f_api_key').value;
+  if (!v) return;
+  await navigator.clipboard.writeText(v);
+  $('copyBtn').textContent = 'Copied ✓';
+  setTimeout(()=>$('copyBtn').textContent = 'Copy', 1600);
+}
+
+async function saveTenant() {
+  const body = {
+    company_name: $('f_company_name').value.trim(),
+    agent_name: $('f_agent_name').value,
+    language: $('f_language').value,
+    greeting: $('f_greeting').value,
+    facts: $('f_facts').value,
+    questions: $('f_questions').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    transfer_to: $('f_transfer_to').value,
+    included_minutes: parseInt($('f_included_minutes').value, 10) || 0,
+    status: $('f_status').value,
+  };
+  if (!body.company_name) { showToast('Company name is required', true); return; }
+  const id = $('f_tenant_id').value;
+  const btn = $('drawerSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    if (id) await api(`/admin/tenants/${id}`, { method:'PUT', body: JSON.stringify(body) });
+    else await api('/admin/tenants', { method:'POST', body: JSON.stringify(body) });
+    showToast('Tenant saved ✓');
+    closeDrawer();
+    loadAll();
+  } catch (e) {
+    showToast('Save failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save tenant';
+  }
+}
+
+async function deleteTenant(tenantId, companyName) {
+  if (!confirm(`Delete tenant "${companyName}"? This cannot be undone.`)) return;
+  try {
+    await api(`/admin/tenants/${tenantId}`, { method:'DELETE' });
+    showToast('Tenant deleted');
+    loadAll();
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, true);
+  }
+}
+
+// ---------------------------------------------------------------- number mapping
+async function mapNumber() {
+  const box = $('mapResult');
+  try {
+    const r = await api('/admin/numbers', { method:'POST',
+      body: JSON.stringify({ e164: $('n_e164').value.trim(), tenant_id: $('n_tenant').value.trim() }) });
+    box.className = 'result-box ok show';
+    box.textContent = `Mapped ${r.e164 ?? r.mapped} → ${r.tenant_id}`;
+    showToast('Number mapped ✓');
+  } catch (e) {
+    box.className = 'result-box err show';
+    box.textContent = e.message;
+  }
+}
+
+// ---------------------------------------------------------------- test call
+async function testCall() {
+  const box = $('testResult');
+  const to = $('t_to').value.trim();
+  if (!to) { box.className='result-box err show'; box.textContent='Phone number required'; return; }
+  try {
+    const body = { to };
+    if ($('t_tenant').value) body.tenant_id = $('t_tenant').value;
+    const r = await api('/admin/test-call', { method:'POST', body: JSON.stringify(body) });
+    box.className = 'result-box ok show';
+    box.textContent = `Queued ✓  call_sid: ${r.call_sid}\nto: ${r.to}`;
+  } catch (e) {
+    box.className = 'result-box err show';
+    box.textContent = e.message;
+  }
+}
+</script>
+</body>
+</html>

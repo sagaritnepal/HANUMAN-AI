@@ -1,0 +1,19 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+anthropic>=0.40
+python-dotenv>=1.0
+websockets>=12.0
+httpx>=0.27
+pydantic>=2.7
+# Telephony (Twilio path — optional, install if using Twilio)
+twilio>=9.0
+# Speech-to-text (pick one)
+# openai-whisper is heavy; faster-whisper runs well on a CPU VPS
+faster-whisper>=1.0
+# Text-to-speech (offline, free) — or use a cloud TTS via API
+piper-tts>=1.2 ; platform_system == "Linux"
+# Audio handling
+numpy>=1.26
+soundfile>=0.12
+audioop-lts ; python_version >= "3.13"
