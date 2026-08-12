@@ -33,6 +33,10 @@ def main():
     print("\n--- Lead captured ---")
     for k, v in session.lead.to_dict().items():
         print(f"  {k}: {v}")
+    print("\n--- Cost ---")
+    for k, v in session.usage_totals.items():
+        print(f"  {k}: {v}")
+    print(f"  estimated cost: ${session.cost_usd:.5f}")
 
 
 if __name__ == "__main__":

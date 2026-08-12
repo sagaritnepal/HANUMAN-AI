@@ -29,6 +29,29 @@ def _get_client() -> anthropic.Anthropic:
     return _client
 
 
+# ---------------------------------------------------------------- cost
+
+# USD per 1M tokens: (input, output, cache_write_5m, cache_read).
+PRICING = {
+    "haiku": (1.00, 5.00, 1.25, 0.10),
+    "sonnet": (3.00, 15.00, 3.75, 0.30),
+}
+
+
+def estimate_cost_usd(usage: dict, model: str) -> float:
+    """Rough $ cost for accumulated token usage, given the model name."""
+    rates = next((r for key, r in PRICING.items() if key in model), None)
+    if rates is None:
+        return 0.0
+    in_rate, out_rate, cache_write_rate, cache_read_rate = rates
+    return (
+        usage.get("input_tokens", 0) * in_rate
+        + usage.get("output_tokens", 0) * out_rate
+        + usage.get("cache_creation_input_tokens", 0) * cache_write_rate
+        + usage.get("cache_read_input_tokens", 0) * cache_read_rate
+    ) / 1_000_000
+
+
 @dataclass
 class Lead:
     """Structured info the agent tries to collect during the call."""
@@ -58,10 +81,20 @@ class CallSession:
     lead: Lead = field(default_factory=Lead)
     ended: bool = False
     started_at: float = field(default_factory=lambda: __import__("time").time())
+    usage_totals: dict = field(default_factory=lambda: {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    })
 
     def duration_sec(self) -> int:
         import time
         return int(time.time() - self.started_at)
+
+    @property
+    def cost_usd(self) -> float:
+        return estimate_cost_usd(self.usage_totals, config.CLAUDE_MODEL)
 
 
 # ---------------------------------------------------------------- prompts
@@ -147,6 +180,16 @@ def _turn(session: CallSession, user_text: str | None) -> str:
     )
     raw = response.content[0].text
     session.messages.append({"role": "assistant", "content": raw})
+
+    usage = response.usage
+    session.usage_totals["input_tokens"] += getattr(usage, "input_tokens", 0) or 0
+    session.usage_totals["output_tokens"] += getattr(usage, "output_tokens", 0) or 0
+    session.usage_totals["cache_creation_input_tokens"] += (
+        getattr(usage, "cache_creation_input_tokens", 0) or 0
+    )
+    session.usage_totals["cache_read_input_tokens"] += (
+        getattr(usage, "cache_read_input_tokens", 0) or 0
+    )
 
     say, lead_update, end_call = _parse_envelope(raw)
 

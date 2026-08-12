@@ -27,7 +27,9 @@ def save_session(session) -> None:
     # meter real calls (not portal test chats)
     if session.caller_number != "portal-test":
         try:
-            usage.record_call(session.tenant.tenant_id, session.duration_sec())
+            usage.record_call(
+                session.tenant.tenant_id, session.duration_sec(), session.cost_usd
+            )
         except Exception:
             pass   # metering must never break call handling
     with _conn() as conn:

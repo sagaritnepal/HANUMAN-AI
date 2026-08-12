@@ -17,3 +17,5 @@ piper-tts>=1.2 ; platform_system == "Linux"
 numpy>=1.26
 soundfile>=0.12
 audioop-lts ; python_version >= "3.13"
+# Tests
+pytest>=8.0
