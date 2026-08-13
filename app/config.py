@@ -22,3 +22,13 @@ WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 TTS_VOICE = os.getenv("TTS_VOICE", "en_US-amy-medium")
 
 LEADS_DB_PATH = os.getenv("LEADS_DB_PATH", "./leads.db")
+
+# Asterisk ARI bridge (media/asterisk_bridge.py) — Phase 1, groundwork.
+# Bridge must run on the same host as Asterisk (EXTERNAL_MEDIA_HOST and
+# ASTERISK_SOUNDS_DIR both assume local access).
+ARI_BASE_URL = os.getenv("ARI_BASE_URL", "http://127.0.0.1:8088/ari")
+ARI_USERNAME = os.getenv("ARI_USERNAME", "")
+ARI_PASSWORD = os.getenv("ARI_PASSWORD", "")
+ARI_APP_NAME = os.getenv("ARI_APP_NAME", "hanuman")
+EXTERNAL_MEDIA_HOST = os.getenv("EXTERNAL_MEDIA_HOST", "127.0.0.1")
+ASTERISK_SOUNDS_DIR = os.getenv("ASTERISK_SOUNDS_DIR", "/var/lib/asterisk/sounds/custom")

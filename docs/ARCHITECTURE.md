@@ -166,3 +166,6 @@ The current repo is the seed of the AGENT CORE:
 2. `app/storage.py` — replace SQLite with Postgres + the schema above (SQLite stays fine for single-tenant pilot).
 3. `app/main.py` — `/ws/chat` gains a `tenant_id` handshake message; add `/admin` CRUD for tenant configs.
 4. New: `media/` (Whisper+Piper worker), `dashboard/` (web app), `billing/` (metering jobs).
+
+`media/asterisk_bridge.py` is the Phase 1 ARI↔`/ws/chat` bridge (untested groundwork —
+see `docs/ASTERISK_SETUP.md`).

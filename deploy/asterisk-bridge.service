@@ -1,0 +1,18 @@
+# /etc/systemd/system/asterisk-bridge.service   (Phase 1 — Asterisk ARI bridge)
+# Requires Asterisk + the callagent service already running. See docs/ASTERISK_SETUP.md.
+# sudo systemctl daemon-reload && sudo systemctl enable --now asterisk-bridge
+[Unit]
+Description=hanuman.ai Asterisk ARI bridge
+After=network.target asterisk.service callagent.service
+Requires=callagent.service
+
+[Service]
+User=www-data
+WorkingDirectory=/opt/nepal-call-agent
+EnvironmentFile=/opt/nepal-call-agent/.env
+ExecStart=/opt/nepal-call-agent/venv/bin/python media/asterisk_bridge.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
