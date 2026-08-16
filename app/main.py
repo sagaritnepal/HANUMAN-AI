@@ -48,11 +48,15 @@ def _xml_escape(s: str) -> str:
 
 
 def _twiml(text: str, gather: bool = True, action: str = "/twilio/turn") -> Response:
-    say = f'<Say language="en-IN">{_xml_escape(text)}</Say>'
+    # Twilio has no Nepali (ne-NP) voice; hi-IN is the closest supported
+    # language — same Devanagari script, far more intelligible than en-IN
+    # misreading Nepali text. Real Nepali needs the Asterisk/Piper pipeline
+    # (see docs/ASTERISK_SETUP.md) — this is a stopgap for Twilio testing.
+    say = f'<Say language="hi-IN">{_xml_escape(text)}</Say>'
     if gather:
         body = (
             f'<Gather input="speech" action="{action}" method="POST" '
-            f'speechTimeout="auto" language="en-IN">{say}</Gather>'
+            f'speechTimeout="auto" language="hi-IN">{say}</Gather>'
             f'<Redirect method="POST">{action}</Redirect>'
         )
     else:
