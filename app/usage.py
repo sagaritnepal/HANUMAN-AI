@@ -17,6 +17,11 @@ def _conn():
             PRIMARY KEY (tenant_id, month)
         )"""
     )
+    # CREATE TABLE IF NOT EXISTS doesn't add columns to a table that already
+    # exists from before claude_usd was introduced — migrate it in explicitly.
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(usage_monthly)")}
+    if "claude_usd" not in existing_cols:
+        conn.execute("ALTER TABLE usage_monthly ADD COLUMN claude_usd REAL DEFAULT 0")
     return conn
 
 
