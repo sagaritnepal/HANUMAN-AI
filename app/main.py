@@ -21,13 +21,18 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Header, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response, JSONResponse, HTMLResponse
+from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
 from . import agent, storage, tenants, usage, config
 
 app = FastAPI(title="hanuman.ai — AI Call Platform")
 
 SESSIONS: dict[str, agent.CallSession] = {}   # single-process; Redis when scaling out
+
+
+@app.get("/")
+async def root():
+    return RedirectResponse("/admin")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
