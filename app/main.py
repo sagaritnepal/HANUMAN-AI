@@ -288,12 +288,16 @@ async def admin_test_call(body: dict, x_admin_key: str | None = Header(default=N
             and config.TWILIO_PHONE_NUMBER and config.PUBLIC_BASE_URL):
         raise HTTPException(400, "TWILIO_* and PUBLIC_BASE_URL must be set in .env")
 
+    from twilio.base.exceptions import TwilioRestException
     from twilio.rest import Client as TwilioClient
     tw = TwilioClient(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
     url = config.PUBLIC_BASE_URL.rstrip("/") + "/twilio/voice"
     if body.get("tenant_id"):
         url += f"?tenant_id={body['tenant_id']}"
-    call = tw.calls.create(to=to, from_=config.TWILIO_PHONE_NUMBER, url=url)
+    try:
+        call = tw.calls.create(to=to, from_=config.TWILIO_PHONE_NUMBER, url=url)
+    except TwilioRestException as e:
+        raise HTTPException(400, f"Twilio error: {e.msg}")
     return {"queued": True, "call_sid": call.sid, "to": to}
 
 
