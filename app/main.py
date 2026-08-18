@@ -13,6 +13,8 @@ Admin API (header: X-Admin-Key = ADMIN_API_KEY from .env):
   GET/PUT/DELETE  /admin/tenants/{tenant_id}
   POST            /admin/numbers            {"e164": "...", "tenant_id": "..."}
   GET             /admin/leads?tenant_id=
+  GET/POST        /admin/dnc                 do-not-call list (checked before outbound dial)
+  DELETE          /admin/dnc/{e164}
 
 Dashboard: GET /admin  (simple HTML UI, same admin key)
 """
@@ -23,7 +25,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
-from . import agent, storage, tenants, usage, config
+from . import agent, dnc, storage, tenants, usage, config
 
 app = FastAPI(title="hanuman.ai — AI Call Platform")
 
@@ -210,6 +212,29 @@ async def admin_leads(
     return JSONResponse(storage.list_leads(tenant_id=tenant_id))
 
 
+@app.get("/admin/dnc")
+async def admin_list_dnc(x_admin_key: str | None = Header(default=None)):
+    _require_admin(x_admin_key)
+    return dnc.list_all()
+
+
+@app.post("/admin/dnc")
+async def admin_add_dnc(body: dict, x_admin_key: str | None = Header(default=None)):
+    _require_admin(x_admin_key)
+    e164 = body.get("e164")
+    if not e164:
+        raise HTTPException(400, "e164 required")
+    dnc.add(e164, reason=body.get("reason", ""))
+    return {"added": e164}
+
+
+@app.delete("/admin/dnc/{e164}")
+async def admin_remove_dnc(e164: str, x_admin_key: str | None = Header(default=None)):
+    _require_admin(x_admin_key)
+    dnc.remove(e164)
+    return {"removed": e164}
+
+
 @app.get("/admin")
 async def admin_dashboard():
     html = (STATIC_DIR / "admin.html").read_text(encoding="utf-8")
@@ -284,6 +309,8 @@ async def admin_test_call(body: dict, x_admin_key: str | None = Header(default=N
     to = body.get("to")
     if not to:
         raise HTTPException(400, "to (E.164 number) required")
+    if dnc.is_listed(to):
+        raise HTTPException(403, f"{to} is on the do-not-call list")
     if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN
             and config.TWILIO_PHONE_NUMBER and config.PUBLIC_BASE_URL):
         raise HTTPException(400, "TWILIO_* and PUBLIC_BASE_URL must be set in .env")
