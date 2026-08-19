@@ -72,12 +72,29 @@ def transcribe_wav(wav_path: str, language: str | None = None) -> str:
     """
     try:
         segments, _info = _get_whisper().transcribe(
-            wav_path, language=language, vad_filter=True
+            wav_path, language=language, vad_filter=True,
+            condition_on_previous_text=False,
+            repetition_penalty=1.2,
+            no_repeat_ngram_size=3,
         )
-        return " ".join(s.text.strip() for s in segments).strip()
+        text = " ".join(s.text.strip() for s in segments).strip()
     except Exception:
         log.exception("transcription failed for %s", wav_path)
         return ""
+    if _looks_like_hallucination(text):
+        log.warning("discarding likely hallucination for %s: %r", wav_path, text)
+        return ""
+    return text
+
+
+def _looks_like_hallucination(text: str) -> bool:
+    """Whisper can loop on ambiguous/noisy audio, repeating one word dozens
+    of times — treat that as noise rather than real speech."""
+    words = text.split()
+    if len(words) < 6:
+        return False
+    most_repeated = max(words.count(w) for w in set(words))
+    return most_repeated / len(words) > 0.4
 
 
 def synthesize(text: str, out_wav: str, voice: str = PIPER_VOICE) -> str:
