@@ -272,6 +272,7 @@ class CallHandler:
         self.hangup_event = asyncio.Event()
         self.sounds_dir = Path(config.ASTERISK_SOUNDS_DIR)
         self.sounds_subdir = self.sounds_dir.name or "custom"
+        self.language = "ne"
 
     def on_caller_hangup(self) -> None:
         self.hangup_event.set()
@@ -292,6 +293,10 @@ class CallHandler:
 
         tenant_id = tenants.tenant_for_number(self.dialed_number) if self.dialed_number else None
         cfg = tenants.get_or_default(tenant_id)
+        # faster-whisper's language auto-detect ("auto") crashes on a chunk its
+        # own VAD strips to nothing, which happens routinely on phone audio —
+        # always pass a concrete language, defaulting to Nepali.
+        self.language = cfg.language if cfg.language in ("ne", "en") else "ne"
         self.agent_ws = await websockets.connect(AGENT_WS_URL)
         await self.agent_ws.send(json.dumps({"tenant_id": cfg.tenant_id}))
         greeting = await self.agent_ws.recv()
@@ -339,7 +344,7 @@ class CallHandler:
 
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 _write_wav(utterance, f.name)
-                text = transcribe_wav(f.name)
+                text = transcribe_wav(f.name, language=self.language)
             if not text.strip():
                 continue
 

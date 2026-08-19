@@ -22,11 +22,14 @@ from __future__ import annotations
 import asyncio
 import audioop
 import json
+import logging
 import subprocess
 import sys
 import tempfile
 import wave
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 TELEPHONY_SAMPLE_RATE = 8000  # Asterisk's format_wav requires an exact match to the endpoint's ulaw/alaw rate
 
@@ -61,11 +64,20 @@ def _get_whisper():
 
 
 def transcribe_wav(wav_path: str, language: str | None = None) -> str:
-    """WAV file → text. language: 'ne', 'en', or None for auto-detect."""
-    segments, _info = _get_whisper().transcribe(
-        wav_path, language=language, vad_filter=True
-    )
-    return " ".join(s.text.strip() for s in segments).strip()
+    """WAV file → text. language: 'ne', 'en', or None for auto-detect.
+
+    Auto-detect crashes faster-whisper (IndexError in detect_language) on a
+    chunk that's silence-only once its own VAD filter strips everything —
+    always pass an explicit language on telephony audio to skip that path.
+    """
+    try:
+        segments, _info = _get_whisper().transcribe(
+            wav_path, language=language, vad_filter=True
+        )
+        return " ".join(s.text.strip() for s in segments).strip()
+    except Exception:
+        log.exception("transcription failed for %s", wav_path)
+        return ""
 
 
 def synthesize(text: str, out_wav: str, voice: str = PIPER_VOICE) -> str:
