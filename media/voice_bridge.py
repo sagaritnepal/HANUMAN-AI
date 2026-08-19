@@ -30,7 +30,11 @@ from pathlib import Path
 
 TELEPHONY_SAMPLE_RATE = 8000  # Asterisk's format_wav requires an exact match to the endpoint's ulaw/alaw rate
 
-WHISPER_MODEL_NAME = "small"
+# Fine-tuned on OpenSLR 54 Nepali speech (154hrs) — far more accurate than base
+# "small" on Nepali (WER 69.7% vs 125.2% in benchmarking). Falls back to the
+# stock model where the fine-tune isn't deployed (e.g. local dev machines).
+_NEPALI_FT_MODEL = "/home/mansa/whisper-small-nepali-ct2"
+WHISPER_MODEL_NAME = _NEPALI_FT_MODEL if Path(_NEPALI_FT_MODEL).exists() else "small"
 _VOICES_DIR = Path(__file__).parent / "voices"
 PIPER_VOICE_EN = str(_VOICES_DIR / "en_US-amy-medium.onnx")
 PIPER_VOICE_NE = str(_VOICES_DIR / "ne_NP-google-medium.onnx")
