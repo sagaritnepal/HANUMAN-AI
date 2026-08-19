@@ -59,7 +59,7 @@ import websockets
 sys.path.insert(0, str(Path(__file__).parent))          # for voice_bridge
 sys.path.insert(0, str(Path(__file__).parent.parent))   # for app.config / app.tenants
 
-from voice_bridge import synthesize, transcribe_wav      # noqa: E402
+from voice_bridge import synthesize, transcribe_wav, voice_for_text  # noqa: E402
 from app import config, tenants                          # noqa: E402
 
 log = logging.getLogger("asterisk_bridge")
@@ -71,7 +71,7 @@ AGENT_WS_URL = "ws://127.0.0.1:8000/ws/chat"
 RMS_SPEECH_THRESHOLD = 500       # out of 32768 full-scale
 SILENCE_TIMEOUT_MS = 700         # how long the caller must be quiet to end an utterance
 MIN_UTTERANCE_MS = 300           # ignore blips shorter than this
-MAX_UTTERANCE_MS = 15_000        # safety valve against a stuck-open mic
+MAX_UTTERANCE_MS = 6_000         # safety valve against a stuck-open mic
 
 
 # ---------------------------------------------------------------- ARI REST
@@ -113,10 +113,22 @@ class AriClient:
             pass
 
     async def add_channel_to_bridge(self, bridge_id: str, channel_id: str) -> None:
-        r = await self._http.post(
-            f"/bridges/{bridge_id}/addChannel", params={"channel": channel_id}
-        )
-        r.raise_for_status()
+        # A freshly created channel (e.g. externalMedia) isn't always immediately
+        # ready to be bridged — Asterisk can 422 briefly until it settles.
+        last_exc: httpx.HTTPStatusError | None = None
+        for attempt in range(5):
+            r = await self._http.post(
+                f"/bridges/{bridge_id}/addChannel", params={"channel": channel_id}
+            )
+            if r.status_code == 422:
+                last_exc = httpx.HTTPStatusError(
+                    f"422 on attempt {attempt}", request=r.request, response=r
+                )
+                await asyncio.sleep(0.1 * (attempt + 1))
+                continue
+            r.raise_for_status()
+            return
+        raise last_exc
 
     async def create_external_media_channel(self, external_host: str) -> str:
         r = await self._http.post(
@@ -292,7 +304,7 @@ class CallHandler:
         stem = f"say_{uuid.uuid4().hex}"
         wav_path = self.sounds_dir / f"{stem}.wav"
         try:
-            synthesize(text, str(wav_path))
+            synthesize(text, str(wav_path), voice=voice_for_text(text))
         except Exception:
             log.exception("TTS failed for call %s", self.channel_id)
             return

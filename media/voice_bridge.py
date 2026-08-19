@@ -20,15 +20,30 @@ or use Google Cloud TTS ne-NP as a paid alternative).
 from __future__ import annotations
 
 import asyncio
+import audioop
 import json
 import subprocess
 import sys
 import tempfile
+import wave
 from pathlib import Path
 
+TELEPHONY_SAMPLE_RATE = 8000  # Asterisk's format_wav requires an exact match to the endpoint's ulaw/alaw rate
+
 WHISPER_MODEL_NAME = "small"
-PIPER_VOICE = str(Path(__file__).parent / "voices" / "en_US-amy-medium.onnx")
+_VOICES_DIR = Path(__file__).parent / "voices"
+PIPER_VOICE_EN = str(_VOICES_DIR / "en_US-amy-medium.onnx")
+PIPER_VOICE_NE = str(_VOICES_DIR / "ne_NP-google-medium.onnx")
+PIPER_VOICE = PIPER_VOICE_EN  # default/back-compat for callers that don't pick a voice
 SERVER_WS = "ws://127.0.0.1:8000/ws/chat"
+
+
+def voice_for_text(text: str) -> str:
+    """Pick the Nepali or English Piper voice by whether the text is
+    Devanagari — an English voice model can't pronounce Nepali script."""
+    if any("ऀ" <= ch <= "ॿ" for ch in text):
+        return PIPER_VOICE_NE
+    return PIPER_VOICE_EN
 
 _whisper = None
 
@@ -50,14 +65,36 @@ def transcribe_wav(wav_path: str, language: str | None = None) -> str:
 
 
 def synthesize(text: str, out_wav: str, voice: str = PIPER_VOICE) -> str:
-    """Text → WAV file via Piper. Returns out_wav path."""
+    """Text → WAV file via Piper, resampled to 8kHz. Returns out_wav path."""
+    # Resolve piper next to the running interpreter — a bare "piper" relies on
+    # PATH, which process managers like pm2 don't populate with the venv's bin/.
+    piper_bin = str(Path(sys.executable).parent / "piper")
     subprocess.run(
-        ["piper", "--model", voice, "--output_file", out_wav],
+        [piper_bin, "--model", voice, "--output_file", out_wav],
         input=text.encode("utf-8"),
         check=True,
         capture_output=True,
     )
+    _resample_to_telephony_rate(out_wav)
     return out_wav
+
+
+def _resample_to_telephony_rate(wav_path: str) -> None:
+    # Piper outputs 22050Hz; Asterisk's format_wav rejects anything that
+    # doesn't exactly match the endpoint's codec rate (8000Hz for ulaw/alaw).
+    with wave.open(wav_path, "rb") as w:
+        channels, sampwidth, rate = w.getnchannels(), w.getsampwidth(), w.getframerate()
+        pcm = w.readframes(w.getnframes())
+    if rate == TELEPHONY_SAMPLE_RATE and channels == 1:
+        return
+    if channels == 2:
+        pcm = audioop.tomono(pcm, sampwidth, 0.5, 0.5)
+    pcm, _ = audioop.ratecv(pcm, sampwidth, 1, rate, TELEPHONY_SAMPLE_RATE, None)
+    with wave.open(wav_path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(sampwidth)
+        w.setframerate(TELEPHONY_SAMPLE_RATE)
+        w.writeframes(pcm)
 
 
 # --------------------------------------------------------------- mic mode
